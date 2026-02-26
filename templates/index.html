@@ -1,0 +1,342 @@
+<!-- templates/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VISTA - Vision Integrated Surveillance for Threat Analysis</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+      color: #eee;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    h1 {
+      margin: 0;
+      font-size: 2.5em;
+      background: linear-gradient(45deg, #00d4ff, #090979);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #container {
+      display: flex;
+      gap: 30px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    #videoBox {
+      flex: 1;
+      min-width: 600px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      padding: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    img#stream {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #333;
+      border-radius: 8px;
+    }
+    .status-bar {
+      padding: 15px;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .status { font-size: 18px; font-weight: 700; padding: 8px 12px; border-radius: 8px; display: inline-block; transition: all 0.3s ease; }
+    .crowded { background: linear-gradient(45deg, #ff0000, #8b0000); color: #fff; animation: pulse 1s infinite; }
+    .safe { background: linear-gradient(45deg, #00ff00, #008000); color: #fff; }
+    .violence-detected { background: linear-gradient(45deg, #ff4500, #dc143c); }
+    .abandoned-detected { background: linear-gradient(45deg, #ffa500, #ff6347); }
+    .suspicious-detected { background: linear-gradient(45deg, #0000ff, #4169e1); }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .download-link { color: #00d4ff; text-decoration: none; padding: 8px 12px; border-radius: 6px; background: rgba(0,212,255,0.1); transition: background 0.3s; }
+    .download-link:hover { background: rgba(0,212,255,0.3); }
+    #controls {
+      flex: 0 0 400px;
+      max-width: 400px;
+    }
+    .panel {
+      background: rgba(255,255,255,0.05);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .panel h3 {
+      margin-top: 0;
+      color: #00d4ff;
+      border-bottom: 2px solid #00d4ff;
+      padding-bottom: 5px;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      background: linear-gradient(45deg, #00d4ff, #0099cc);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 600;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,212,255,0.4); }
+    button:active { transform: translateY(0); }
+    input[type="text"], input[type="number"], input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      color: #eee;
+    }
+    input[type="text"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: #00d4ff;
+      box-shadow: 0 0 5px rgba(0,212,255,0.5);
+    }
+    #logArea {
+      height: 150px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    #logArea div { margin-bottom: 5px; padding: 5px; border-radius: 4px; background: rgba(255,255,255,0.05); }
+    .loading { opacity: 0.6; pointer-events: none; }
+    .alert { animation: shake 0.5s; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+    @media (max-width: 768px) {
+      #container { flex-direction: column; }
+      #videoBox { min-width: auto; }
+      #controls { flex: none; max-width: none; }
+      h1 { font-size: 2em; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>VISTA - Vision Integrated Surveillance for Threat Analysis</h1>
+  </header>
+  <div id="container">
+    <div id="videoBox">
+      <img id="stream" src="{{ url_for('video_feed') }}" alt="video stream">
+      <div class="status-bar">
+        <div>
+          <span id="statusBadge" class="status">UNKNOWN</span>
+          <span id="countBadge" style="margin-left:10px">Count: 0</span>
+          <span id="violenceBadge" class="status">Violence: NONE</span>
+          <span id="abandonedBadge" class="status">Abandoned: 0</span>
+          <span id="suspiciousBadge" class="status">Suspicious: NONE</span>
+        </div>
+        <div>
+          <a href="/download_log" class="download-link">📥 Download Log</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="controls">
+      <div class="panel">
+        <h3>Source</h3>
+        <div>
+          <button onclick="setWebcam(0)">Use Webcam (0)</button>
+          <button onclick="setWebcam(1)">Use Webcam (1)</button>
+        </div>
+        <div style="margin-top:10px;">
+          <input id="rtsp_input" placeholder="rtsp://..." style="width:100%" />
+          <button onclick="setRTSP()">Use RTSP</button>
+        </div>
+        <div style="margin-top:10px;">
+          <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" id="fileInput" name="file" accept="image/*,video/*"><br>
+            <button type="button" onclick="uploadFile()">Upload for Test</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Settings</h3>
+        <label>People limit: <input id="limit_input" value="10" type="number" min="1" style="width:70px"></label><br>
+        <label>Distance px: <input id="dist_input" value="80" type="number" min="1" style="width:70px"></label><br>
+        <small style="color:#aaa">(Restart server to apply these if changed in backend config)</small>
+      </div>
+
+      <div class="panel">
+        <h3>Live Status</h3>
+        <div id="logArea">
+          Logs appear here...
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let lastStatus = "UNKNOWN";
+
+// Poll status every 900ms
+async function pollStatus(){
+  try {
+    const r = await fetch("/status");
+    const data = await r.json();
+    const status = data.crowd_status || "UNKNOWN";
+    const count = data.count || 0;
+    const violence_detected = data.violence_detected || false;
+    const abandoned_count = data.abandoned_count || 0;
+    const suspicious_detected = data.suspicious_detected || false;
+    const badge = document.getElementById("statusBadge");
+    const cb = document.getElementById("countBadge");
+    const vb = document.getElementById("violenceBadge");
+    const ab = document.getElementById("abandonedBadge");
+    const sb = document.getElementById("suspiciousBadge");
+    cb.innerText = "Count: " + count;
+    vb.innerText = "Violence: " + (violence_detected ? "DETECTED" : "NONE");
+    vb.className = violence_detected ? "status violence-detected" : "status";
+    ab.innerText = "Abandoned: " + abandoned_count;
+    ab.className = abandoned_count > 0 ? "status abandoned-detected" : "status";
+    sb.innerText = "Suspicious: " + (suspicious_detected ? "DETECTED" : "NONE");
+    sb.className = suspicious_detected ? "status suspicious-detected" : "status";
+
+    if (status === "CROWDED") {
+      badge.className = "status crowded";
+      badge.innerText = "CROWDED ⚠";
+    } else if (status === "NON-CROWDED") {
+      badge.className = "status safe";
+      badge.innerText = "NON-CROWDED ✓";
+    } else {
+      badge.className = "status";
+      badge.innerText = status;
+    }
+
+    // When status switches to CROWDED, play browser beep once
+    if (lastStatus !== "CROWDED" && status === "CROWDED") {
+      playBrowserBeep();
+      addLog("ALERT: CROWDED (" + count + ")");
+    } else if (lastStatus !== status) {
+      addLog("Status changed: " + status + " (" + count + ")");
+    }
+
+    lastStatus = status;
+  } catch (e) {
+    console.error("status poll error", e);
+  } finally {
+    setTimeout(pollStatus, 900);
+  }
+}
+
+function addLog(msg){
+  const area = document.getElementById("logArea");
+  const ts = new Date().toLocaleString();
+  area.innerHTML = `<div>[${ts}] ${msg}</div>` + area.innerHTML;
+}
+
+// Simple browser beep via WebAudio
+function playBrowserBeep(){
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 1000;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.4);
+    setTimeout(()=>{ o.stop(); ctx.close(); }, 450);
+  } catch (e) {
+    console.warn("Browser beep failed", e);
+  }
+}
+
+// Buttons
+async function setWebcam(index){
+  const btn = event.target;
+  btn.classList.add('loading');
+  try {
+    await fetch("/set_source", {
+      method:"POST",
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({type:"webcam", value: index})
+    });
+    addLog("Switched to webcam " + index);
+  } catch (e) {
+    addLog("Error switching to webcam: " + e.message);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+async function setRTSP(){
+  const url = document.getElementById("rtsp_input").value.trim();
+  if (!url) { alert("Enter RTSP URL"); return; }
+  const btn = event.target;
+  btn.classList.add('loading');
+  try {
+    await fetch("/set_source", {
+      method:"POST",
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({type:"rtsp", value: url})
+    });
+    addLog("Switched to RTSP: " + url);
+  } catch (e) {
+    addLog("Error switching to RTSP: " + e.message);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+// Upload
+async function uploadFile(){
+  const f = document.getElementById("fileInput").files[0];
+  if (!f) { alert("Pick a file first"); return; }
+  const btn = event.target;
+  btn.classList.add('loading');
+  try {
+    const fd = new FormData();
+    fd.append("file", f);
+    const resp = await fetch("/upload", { method:"POST", body: fd });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      alert("Upload failed: " + txt);
+      return;
+    }
+    const blob = await resp.blob();
+    // Open annotated image in new tab
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    addLog("Uploaded file processed (preview opened).");
+  } catch (e) {
+    addLog("Error uploading file: " + e.message);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+// start polling
+pollStatus();
+</script>
+</body>
+</html>
