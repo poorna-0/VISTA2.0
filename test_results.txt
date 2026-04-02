@@ -1,0 +1,121 @@
+
+============================================================
+  UNIT TESTS
+============================================================
+test_log_creates_row (test_unit.TestCSVLogging.test_log_creates_row)
+UT-07: Logging adds exactly one row. ... ok
+test_log_multiple_rows (test_unit.TestCSVLogging.test_log_multiple_rows)
+UT-09: Multiple log calls accumulate rows. ... ok
+test_log_values_correct (test_unit.TestCSVLogging.test_log_values_correct)
+UT-08: Logged values match inputs. ... ok
+test_conf_threshold_range (test_unit.TestConfigConstants.test_conf_threshold_range)
+UT-12: Confidence threshold must be between 0 and 1. ... ok
+test_distance_threshold_positive (test_unit.TestConfigConstants.test_distance_threshold_positive)
+UT-11: DISTANCE_THRESHOLD should be positive. ... ok
+test_people_limit_positive (test_unit.TestConfigConstants.test_people_limit_positive)
+UT-10: PEOPLE_LIMIT should be a positive integer. ... ok
+test_stream_fps_limit_positive (test_unit.TestConfigConstants.test_stream_fps_limit_positive)
+UT-13: STREAM_FPS_LIMIT should be positive. ... ok
+test_dense_cluster_is_crowded (test_unit.TestCrowdDetectionLogic.test_dense_cluster_is_crowded)
+UT-03: 12 people within 50px → crowded. ... ok
+test_distance_threshold_respected (test_unit.TestCrowdDetectionLogic.test_distance_threshold_respected)
+UT-06: People outside threshold are not counted together. ... ok
+test_empty_centroids_returns_false (test_unit.TestCrowdDetectionLogic.test_empty_centroids_returns_false)
+UT-01: No people → not crowded, count=0. ... ok
+test_exact_people_limit_boundary (test_unit.TestCrowdDetectionLogic.test_exact_people_limit_boundary)
+UT-04: Exactly at people_limit → crowded. ... ok
+test_few_spread_out_people_not_crowded (test_unit.TestCrowdDetectionLogic.test_few_spread_out_people_not_crowded)
+UT-02: 5 people spread > threshold → not crowded. ... ok
+test_single_person_not_crowded (test_unit.TestCrowdDetectionLogic.test_single_person_not_crowded)
+UT-05: Single person → not crowded. ... ok
+test_concurrent_counter_increment (test_unit.TestThreadSafety.test_concurrent_counter_increment)
+UT-14: Concurrent lock-protected increments should be race-free. ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.011s
+
+OK
+
+============================================================
+  INTEGRATION TESTS
+============================================================
+test_download_log_returns_file (test_integration.TestFlaskRoutes.test_download_log_returns_file)
+IT-11: GET /download_log returns a CSV attachment. ... ok
+test_index_route_returns_200 (test_integration.TestFlaskRoutes.test_index_route_returns_200)
+IT-01: GET / returns HTTP 200 and HTML content. ... ok
+test_set_source_invalid_type (test_integration.TestFlaskRoutes.test_set_source_invalid_type)
+IT-07: POST /set_source with invalid type returns 400. ... ok
+test_set_source_missing_params (test_integration.TestFlaskRoutes.test_set_source_missing_params)
+IT-08: POST /set_source without required fields returns 400. ... ok
+test_set_source_rtsp (test_integration.TestFlaskRoutes.test_set_source_rtsp)
+IT-06: POST /set_source with rtsp type stores the URL. ... ok
+test_set_source_webcam (test_integration.TestFlaskRoutes.test_set_source_webcam)
+IT-05: POST /set_source with webcam type succeeds. ... ok
+test_set_source_webcam_invalid_value (test_integration.TestFlaskRoutes.test_set_source_webcam_invalid_value)
+IT-13: Webcam source with non-integer value returns 400. ... ok
+test_status_count_is_int (test_integration.TestFlaskRoutes.test_status_count_is_int)
+IT-04: count value is an integer. ... ok
+test_status_crowd_status_is_string (test_integration.TestFlaskRoutes.test_status_crowd_status_is_string)
+IT-03: crowd_status value is a string. ... ok
+test_status_route_returns_json (test_integration.TestFlaskRoutes.test_status_route_returns_json)
+IT-02: GET /status returns valid JSON with expected keys. ... ok
+test_status_violence_is_bool (test_integration.TestFlaskRoutes.test_status_violence_is_bool)
+IT-14: violence_detected value is boolean. ... ok
+test_upload_image_returns_jpeg (test_integration.TestFlaskRoutes.test_upload_image_returns_jpeg)
+IT-10: POST /upload with a valid PNG image returns annotated JPEG. ... ok
+test_upload_no_file_redirects (test_integration.TestFlaskRoutes.test_upload_no_file_redirects)
+IT-09: POST /upload with no file redirects to index. ... ok
+test_video_feed_content_type (test_integration.TestFlaskRoutes.test_video_feed_content_type)
+IT-12: GET /video_feed returns multipart MIME type header. ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.510s
+
+OK
+
+============================================================
+  SYSTEM AND PERFORMANCE TESTS
+============================================================
+test_concurrent_status_requests (test_system_perf.TestPerformanceMetrics.test_concurrent_status_requests)
+PT-04: 20 concurrent /status requests all succeed. ... ok
+test_crowd_logic_performance_large_input (test_system_perf.TestPerformanceMetrics.test_crowd_logic_performance_large_input)
+PT-08: crowd logic runs in < 50 ms for 1000 centroids. ... ok
+test_csv_log_write_speed (test_system_perf.TestPerformanceMetrics.test_csv_log_write_speed)
+PT-07: Writing 500 log rows takes < 1 second. ... ok
+test_image_upload_processing_time (test_system_perf.TestPerformanceMetrics.test_image_upload_processing_time)
+PT-06: Image upload + mock process_frame completes in < 500 ms. ... ok
+test_index_response_time_under_200ms (test_system_perf.TestPerformanceMetrics.test_index_response_time_under_200ms)
+PT-02: GET / responds in < 200 ms. ... ok
+test_set_source_response_time (test_system_perf.TestPerformanceMetrics.test_set_source_response_time)
+PT-05: POST /set_source responds in < 200 ms. ... ok
+test_status_response_time_under_100ms (test_system_perf.TestPerformanceMetrics.test_status_response_time_under_100ms)
+PT-01: /status responds in < 100 ms (no model inference). ... ok
+test_status_throughput_50rps (test_system_perf.TestPerformanceMetrics.test_status_throughput_50rps)
+PT-03: /status endpoint handles ≥ 50 requests in ≤ 2 seconds. ... ok
+test_full_dashboard_load (test_system_perf.TestSystemWorkflows.test_full_dashboard_load)
+ST-01: Dashboard HTML loads successfully with status 200. ... ok
+test_image_upload_end_to_end (test_system_perf.TestSystemWorkflows.test_image_upload_end_to_end)
+ST-03: Upload image → receive annotated JPEG response. ... ok
+test_invalid_source_does_not_break_status (test_system_perf.TestSystemWorkflows.test_invalid_source_does_not_break_status)
+ST-08: Invalid source switch doesn't break the /status endpoint. ... ok
+test_log_download_after_status_poll (test_system_perf.TestSystemWorkflows.test_log_download_after_status_poll)
+ST-04: After polling status, log file is downloadable. ... ok
+test_multiple_uploads_sequential (test_system_perf.TestSystemWorkflows.test_multiple_uploads_sequential)
+ST-07: Multiple sequential image uploads all succeed. ... ok
+test_source_switch_then_status_poll (test_system_perf.TestSystemWorkflows.test_source_switch_then_status_poll)
+ST-02: Switch source to RTSP, then poll status — should remain consistent. ... ok
+test_source_switch_webcam_to_file (test_system_perf.TestSystemWorkflows.test_source_switch_webcam_to_file)
+ST-05: Switch from webcam to file source returns ok. ... ok
+test_status_fields_always_present (test_system_perf.TestSystemWorkflows.test_status_fields_always_present)
+ST-06: All 5 status fields always present after state changes. ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.251s
+
+OK
+
+
+===== SUMMARY =====
+[ALL PASS] UNIT TESTS: ran=14 passed=14 failed=0 errors=0
+[ALL PASS] INTEGRATION TESTS: ran=14 passed=14 failed=0 errors=0
+[ALL PASS] SYSTEM AND PERFORMANCE TESTS: ran=16 passed=16 failed=0 errors=0

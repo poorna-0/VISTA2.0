@@ -1,0 +1,49 @@
+
+============================================================
+  UNIT TESTS
+============================================================
+test_log_creates_row (test_unit.TestCSVLogging.test_log_creates_row)
+UT-07: Logging adds exactly one row. ... ok
+test_log_multiple_rows (test_unit.TestCSVLogging.test_log_multiple_rows)
+UT-09: Multiple log calls accumulate rows. ... ok
+test_log_values_correct (test_unit.TestCSVLogging.test_log_values_correct)
+UT-08: Logged values match inputs. ... ok
+test_conf_threshold_range (test_unit.TestConfigConstants.test_conf_threshold_range)
+UT-12: Confidence threshold must be between 0 and 1. ... ok
+test_distance_threshold_positive (test_unit.TestConfigConstants.test_distance_threshold_positive)
+UT-11: DISTANCE_THRESHOLD should be positive. ... ok
+test_people_limit_positive (test_unit.TestConfigConstants.test_people_limit_positive)
+UT-10: PEOPLE_LIMIT should be a positive integer. ... ok
+test_stream_fps_limit_positive (test_unit.TestConfigConstants.test_stream_fps_limit_positive)
+UT-13: STREAM_FPS_LIMIT should be positive. ... ok
+Traceback (most recent call last):
+  File "D:\VISTA 2.0\VISTA2.0\run_tests.py", line 45, in <module>
+    run_suite("UNIT TESTS", "test_unit")
+  File "D:\VISTA 2.0\VISTA2.0\run_tests.py", line 36, in run_suite
+    result = runner.run(suite)
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\unittest\runner.py", line 217, in run
+    test(result)
+  File "C:\Program Files\Python311\Lib\unittest\suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\unittest\suite.py", line 122, in run
+    test(result)
+  File "C:\Program Files\Python311\Lib\unittest\suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\unittest\suite.py", line 122, in run
+    test(result)
+  File "C:\Program Files\Python311\Lib\unittest\case.py", line 678, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\unittest\case.py", line 599, in run
+    result.startTest(self)
+  File "C:\Program Files\Python311\Lib\unittest\runner.py", line 56, in startTest
+    self.stream.write(self.getDescription(test))
+  File "D:\VISTA 2.0\VISTA2.0\run_tests.py", line 15, in write
+    s.write(data)
+  File "C:\Program Files\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 126: character maps to <undefined>
