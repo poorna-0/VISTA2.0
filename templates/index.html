@@ -107,7 +107,7 @@
 
     /* ── Stat cards ───────────────────────────────────────── */
     .stats{
-      display:grid;grid-template-columns:repeat(4,1fr);
+      display:grid;grid-template-columns:repeat(5,1fr);
       gap:14px;margin-bottom:20px;
     }
     .sc{
@@ -129,6 +129,7 @@
     .badge-warn{background:rgba(245,158,11,0.12);color:var(--amber);border:1px solid rgba(245,158,11,0.2);}
     .badge-danger{background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.2);}
     .badge-violet{background:rgba(139,92,246,0.12);color:var(--violet);border:1px solid rgba(139,92,246,0.2);}
+    .badge-orange{background:rgba(249,115,22,0.12);color:#f97316;border:1px solid rgba(249,115,22,0.2);}
     .badge-muted{background:rgba(100,116,139,0.12);color:var(--muted);border:1px solid rgba(100,116,139,0.2);}
     .sc-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:6px;}
     .sc-val{font-size:2rem;font-weight:800;line-height:1;color:var(--text);}
@@ -137,6 +138,7 @@
     .sc.danger{border-color:rgba(239,68,68,0.4);box-shadow:0 0 20px rgba(239,68,68,0.15);animation:danger-pulse 2s ease-in-out infinite;}
     .sc.warn{border-color:rgba(245,158,11,0.4);box-shadow:0 0 20px rgba(245,158,11,0.1);}
     .sc.violet{border-color:rgba(139,92,246,0.4);box-shadow:0 0 20px rgba(139,92,246,0.1);}
+    .sc.orange{border-color:rgba(249,115,22,0.4);box-shadow:0 0 20px rgba(249,115,22,0.15); animation:danger-pulse 2.5s ease-in-out infinite;}
     @keyframes danger-pulse{0%,100%{box-shadow:0 0 20px rgba(239,68,68,0.15);}50%{box-shadow:0 0 35px rgba(239,68,68,0.35);}}
 
     /* ── Dashboard grid ───────────────────────────────────── */
@@ -291,8 +293,8 @@
     }
 
     /* ── Responsive ───────────────────────────────────────── */
-    @media(max-width:960px){
-      .stats{grid-template-columns:repeat(2,1fr);}
+    @media(max-width:1100px){
+      .stats{grid-template-columns:repeat(3,1fr);}
       .grid{grid-template-columns:1fr;}
     }
     @media(max-width:520px){
@@ -364,6 +366,16 @@
         <div class="sc-label">Suspicious</div>
         <div class="sc-val" id="val-suspicious">0%</div>
         <div class="sc-sub" id="sub-suspicious">None</div>
+      </div>
+      <!-- Fire/Smoke -->
+      <div class="sc" id="sc-fire">
+        <div class="sc-top">
+          <span class="sc-icon">🔥</span>
+          <span class="sc-badge badge-safe" id="badge-fire">CLEAR</span>
+        </div>
+        <div class="sc-label">Fire/Smoke</div>
+        <div class="sc-val" id="val-fire">0%</div>
+        <div class="sc-sub" id="sub-fire">Clear</div>
       </div>
     </div>
 
@@ -498,7 +510,7 @@ function setBadge(el,text,cls){
 }
 
 // Status poll
-let last={crowd:'UNKNOWN',violence:false,abandoned:0,suspicious:false};
+let last={crowd:'UNKNOWN',violence:false,abandoned:0,suspicious:false,fire:false};
 
 async function poll(){
   try{
@@ -508,6 +520,7 @@ async function poll(){
     const violence=!!d.violence_detected;
     const abandoned=d.abandoned_count||0;
     const suspicious=!!d.suspicious_detected;
+    const fire=!!d.fire_smoke_detected;
 
     // ── Crowd ─────────────────────────────────────────
     const scCrowd=document.getElementById('sc-crowd');
@@ -560,6 +573,18 @@ async function poll(){
       setBadge(document.getElementById('badge-suspicious'),'NONE','badge-muted');
     }
 
+    // ── Fire/Smoke ────────────────────────────────────
+    const scF=document.getElementById('sc-fire');
+    document.getElementById('val-fire').textContent=fire?'100%':'0%';
+    document.getElementById('sub-fire').textContent=fire?'Detected':'Clear';
+    if(fire){
+      scF.className='sc orange';
+      setBadge(document.getElementById('badge-fire'),'ALERT','badge-orange');
+    } else {
+      scF.className='sc';
+      setBadge(document.getElementById('badge-fire'),'CLEAR','badge-safe');
+    }
+
     // ── Events ────────────────────────────────────────
     if(last.crowd!=='CROWDED'&&crowd==='CROWDED'){
       beep(); addLog('⚠ CROWD ALERT — '+count+' people',  'alert');
@@ -570,8 +595,9 @@ async function poll(){
     if(!last.violence&&violence){beep();addLog('⚠ Violence detected','alert');showAlert('⚠ Violence detected in frame');}
     if(last.abandoned===0&&abandoned>0){addLog('⚠ Abandoned item(s): '+abandoned,'alert');showAlert('⚠ '+abandoned+' abandoned item(s) detected');}
     if(!last.suspicious&&suspicious){addLog('⚠ Suspicious activity detected','alert');showAlert('⚠ Suspicious activity detected');}
+    if(!last.fire&&fire){beep();addLog('⚠ Fire/Smoke detected','alert');showAlert('⚠ Fire/Smoke detected in frame');}
 
-    last={crowd,violence,abandoned,suspicious};
+    last={crowd,violence,abandoned,suspicious,fire};
   }catch(e){console.error(e);}
   finally{setTimeout(poll,900);}
 }
