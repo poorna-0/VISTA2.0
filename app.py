@@ -21,12 +21,13 @@ MODEL_PATH_CD = "models/best (CD).pt"  # Crowd Detection
 MODEL_PATH_VD = "models/best (VD).pt"  # Violence Detection
 MODEL_PATH_UBD = "models/best (UBD).pt" # Abandoned Baggage Detection
 MODEL_PATH_SAD = "models/best (SAD).pt" # Suspicious Activity Detection
+MODEL_PATH_FHD = "models/FHD.pt" # Fire and Smoke Detection
 CSV_LOG = "detection_log.csv"
 PEOPLE_LIMIT = 10                # how many people constitute crowd
 DISTANCE_THRESHOLD = 80          # pixels; tune per camera view
 CONF_THRES = 0.35                # detection confidence threshold
-FRAME_SKIP = 0                    # set >0 to skip frames for speed
-STREAM_FPS_LIMIT = 20            # max yield fps
+FRAME_SKIP = 1                    # Set to 1 to process every other frame (effectively doubles FPS)
+STREAM_FPS_LIMIT = 30            # max yield fps
 # ------------------------------------------
 
 app = Flask(__name__)
@@ -40,14 +41,18 @@ try:
     model_vd = YOLO(MODEL_PATH_VD)
     model_ubd = YOLO(MODEL_PATH_UBD)
     model_sad = YOLO(MODEL_PATH_SAD)
+    model_fhd = YOLO(MODEL_PATH_FHD)
     print("Models loaded.")
 except Exception as e:
     print(f"Error loading models: {e}")
     exit(1)
 
+# Global persistent thread pool to avoid per-frame recreation overhead
+inference_executor = ThreadPoolExecutor(max_workers=5)
+
 # Shared state
 state_lock = threading.Lock()
-current_status = {"crowd_status": "UNKNOWN", "count": 0, "violence_detected": False, "abandoned_count": 0, "suspicious_detected": False}
+current_status = {"crowd_status": "UNKNOWN", "count": 0, "violence_detected": False, "abandoned_count": 0, "suspicious_detected": False, "fire_smoke_detected": False}
 prev_status_value = "UNKNOWN"
 
 # Video source control
@@ -64,14 +69,14 @@ latest_frame_lock = threading.Lock()
 if not os.path.exists(CSV_LOG):
     with open(CSV_LOG, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["timestamp", "status", "count", "violence_detected", "abandoned_count", "suspicious_detected"])
+        writer.writerow(["timestamp", "status", "count", "violence_detected", "abandoned_count", "suspicious_detected", "fire_smoke_detected"])
 
 
-def log_status(status, count, violence_detected, abandoned_count, suspicious_detected):
+def log_status(status, count, violence_detected, abandoned_count, suspicious_detected, fire_smoke_detected):
     ts = datetime.now().isoformat(sep=' ', timespec='seconds')
     with open(CSV_LOG, "a", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow([ts, status, count, violence_detected, abandoned_count, suspicious_detected])
+        writer.writerow([ts, status, count, violence_detected, abandoned_count, suspicious_detected, fire_smoke_detected])
 
 
 def server_beep_once():
@@ -102,26 +107,27 @@ def compute_crowd_from_centroids(centroids, people_limit=PEOPLE_LIMIT, distance_
 
 def process_frame(frame):
     """Run models on frame, draw boxes and return annotated frame and statuses"""
-    # Run inferences on all models in parallel using ThreadPoolExecutor
+    # Run inferences on all models in parallel using pre-initialized ThreadPoolExecutor
     def run_model(model, frame):
         return model(frame, imgsz=640, conf=CONF_THRES, verbose=False)
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {
-            executor.submit(run_model, model_cd, frame): 'cd',
-            executor.submit(run_model, model_vd, frame): 'vd',
-            executor.submit(run_model, model_ubd, frame): 'ubd',
-            executor.submit(run_model, model_sad, frame): 'sad'
-        }
-        results = {}
-        for future in as_completed(futures):
-            key = futures[future]
-            results[key] = future.result()
+    futures = {
+        inference_executor.submit(run_model, model_cd, frame): 'cd',
+        inference_executor.submit(run_model, model_vd, frame): 'vd',
+        inference_executor.submit(run_model, model_ubd, frame): 'ubd',
+        inference_executor.submit(run_model, model_sad, frame): 'sad',
+        inference_executor.submit(run_model, model_fhd, frame): 'fhd'
+    }
+    results = {}
+    for future in as_completed(futures):
+        key = futures[future]
+        results[key] = future.result()
 
     results_cd = results['cd']
     results_vd = results['vd']
     results_ubd = results['ubd']
     results_sad = results['sad']
+    results_fhd = results['fhd']
 
     # Process Crowd Detection (CD)
     boxes_cd = []
@@ -170,13 +176,21 @@ def process_frame(frame):
     boxes_ubd = []
     res_ubd = results_ubd[0]
     if hasattr(res_ubd, "boxes") and res_ubd.boxes is not None:
+        frame_h, frame_w = frame.shape[:2]
+        frame_area = frame_h * frame_w
         xyxy_ubd = res_ubd.boxes.xyxy.cpu().numpy()
         confs_ubd = res_ubd.boxes.conf.cpu().numpy() if hasattr(res_ubd.boxes, "conf") else np.ones(len(xyxy_ubd))
         for i, (box, conf) in enumerate(zip(xyxy_ubd, confs_ubd)):
             if conf < CONF_THRES:
                 continue
-            abandoned_count += 1
             x1, y1, x2, y2 = map(int, box)
+            
+            # Ignore false positives where the "unattended object" is the size of the whole video
+            box_area = (x2 - x1) * (y2 - y1)
+            if box_area > (frame_area * 0.40):
+                continue
+                
+            abandoned_count += 1
             boxes_ubd.append((x1, y1, x2, y2, float(conf)))
 
     # Process Suspicious Activity Detection (SAD)
@@ -192,6 +206,20 @@ def process_frame(frame):
             suspicious_detected = True
             x1, y1, x2, y2 = map(int, box)
             boxes_sad.append((x1, y1, x2, y2, float(conf)))
+
+    # Process Fire/Smoke Detection (FHD)
+    fire_smoke_detected = False
+    boxes_fhd = []
+    res_fhd = results_fhd[0]
+    if hasattr(res_fhd, "boxes") and res_fhd.boxes is not None:
+        xyxy_fhd = res_fhd.boxes.xyxy.cpu().numpy()
+        confs_fhd = res_fhd.boxes.conf.cpu().numpy() if hasattr(res_fhd.boxes, "conf") else np.ones(len(xyxy_fhd))
+        for i, (box, conf) in enumerate(zip(xyxy_fhd, confs_fhd)):
+            if conf < CONF_THRES:
+                continue
+            fire_smoke_detected = True
+            x1, y1, x2, y2 = map(int, box)
+            boxes_fhd.append((x1, y1, x2, y2, float(conf)))
 
     # Annotate frame
     out = frame.copy()
@@ -211,6 +239,10 @@ def process_frame(frame):
     for (x1, y1, x2, y2, conf) in boxes_sad:
         cv2.rectangle(out, (x1, y1), (x2, y2), (255, 0, 0), 2)
         cv2.putText(out, f"Suspicious {conf:.2f}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+    # Draw FHD boxes in orange
+    for (x1, y1, x2, y2, conf) in boxes_fhd:
+        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 165, 255), 2)
+        cv2.putText(out, f"Fire/Smoke {conf:.2f}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
 
     # Overlay statuses
     y_offset = 20
@@ -233,14 +265,20 @@ def process_frame(frame):
     suspicious_text = f"Suspicious: {'DETECTED' if suspicious_detected else 'NONE'}"
     suspicious_color = (255, 0, 0) if suspicious_detected else (0, 255, 0)
     cv2.putText(out, suspicious_text, (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, suspicious_color, 2)
+    y_offset += 30
+    # Fire/Smoke status
+    fhd_text = f"Fire/Smoke: {'DETECTED' if fire_smoke_detected else 'NONE'}"
+    fhd_color = (0, 165, 255) if fire_smoke_detected else (0, 255, 0)
+    cv2.putText(out, fhd_text, (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, fhd_color, 2)
 
-    return out, crowded, count, violence_detected, abandoned_count, suspicious_detected
+    return out, crowded, count, violence_detected, abandoned_count, suspicious_detected, fire_smoke_detected
 
 
 def video_capture_thread():
     global capture, video_source, latest_frame, current_status, prev_status_value, running
     last_yield = 0
     frame_idx = 0
+    fps_start_time = time.time()
     while running:
         with capture_lock:
             if capture is None:
@@ -292,7 +330,11 @@ def video_capture_thread():
         if FRAME_SKIP and (frame_idx % (FRAME_SKIP + 1)) != 0:
             continue
 
-        annotated, crowded, count, violence_detected, abandoned_count, suspicious_detected = process_frame(frame)
+        try:
+            annotated, crowded, count, violence_detected, abandoned_count, suspicious_detected, fire_smoke_detected = process_frame(frame)
+        except Exception as e:
+            print("Error parsing frame inferences:", e)
+            continue
 
         # update shared status (with beep on transition)
         with state_lock:
@@ -306,8 +348,9 @@ def video_capture_thread():
             current_status["violence_detected"] = violence_detected
             current_status["abandoned_count"] = abandoned_count
             current_status["suspicious_detected"] = suspicious_detected
+            current_status["fire_smoke_detected"] = fire_smoke_detected
             # log each time state is evaluated (optional: log only on change)
-            log_status(new_status_str, count, violence_detected, abandoned_count, suspicious_detected)
+            log_status(new_status_str, count, violence_detected, abandoned_count, suspicious_detected, fire_smoke_detected)
 
             if prev != "CROWDED" and new_status_str == "CROWDED":
                 # server beep once
@@ -315,6 +358,12 @@ def video_capture_thread():
                     threading.Thread(target=server_beep_once, daemon=True).start()
                 except Exception as e:
                     print("Beep thread error:", e)
+
+        # Calculate and overlay current FPS onto the frame directly
+        current_time = time.time()
+        fps = 1.0 / (current_time - fps_start_time) if (current_time - fps_start_time) > 0 else 0.0
+        fps_start_time = current_time
+        cv2.putText(annotated, f"FPS: {fps:.1f}", (10, annotated.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         # store latest_frame bytes for MJPEG streaming
         ret2, buf = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
@@ -439,7 +488,7 @@ def upload_file():
     # try read as image first
     img = cv2.imread(save_path)
     if img is not None:
-        annotated, crowded, count, violence_detected, abandoned_count, suspicious_detected = process_frame(img)
+        annotated, crowded, count, violence_detected, abandoned_count, suspicious_detected, fire_smoke_detected = process_frame(img)
         # convert to JPEG and send back
         ret, buf = cv2.imencode(".jpg", annotated)
         return send_file(io.BytesIO(buf.tobytes()), mimetype='image/jpeg', as_attachment=False, download_name="annotated.jpg")
